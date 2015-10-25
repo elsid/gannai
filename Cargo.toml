@@ -1,0 +1,11 @@
+[package]
+name = "gannai"
+version = "0.1.0"
+authors = ["elsid <elsid.mail@gmail.com>"]
+
+[dependencies]
+itertools = "*"
+rand = "*"
+
+[dependencies.bobyqa]
+git = "https://github.com/elsid/bobyqa-rs.git"
