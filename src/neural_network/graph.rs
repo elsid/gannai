@@ -1,3 +1,6 @@
+extern crate dot;
+
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashSet};
 
 use super::common::{Node, Weight};
@@ -28,6 +31,10 @@ impl Graph {
 
     pub fn arcs(&self) -> &Arcs {
         &self.arcs
+    }
+
+    pub fn arc_weight(&self, arc: &Arc) -> Weight {
+        self.arcs[arc]
     }
 
     pub fn add_node(&mut self, id: Node) {
@@ -63,6 +70,47 @@ impl Graph {
                 (arc, weight)
             }).collect();
         Graph {nodes: nodes, arcs: arcs}
+    }
+}
+
+impl<'a> dot::Labeller<'a, Node, Arc> for Graph {
+    fn graph_id(&'a self) -> dot::Id<'a> {
+        dot::Id::new("neural_network").unwrap()
+    }
+
+    fn node_id(&'a self, node: &Node) -> dot::Id<'a> {
+        let &Node(id) = node;
+        dot::Id::new(format!("node_{}", id)).unwrap()
+    }
+
+    fn node_label<'b>(&'b self, node: &Node) -> dot::LabelText<'b> {
+        let &Node(id) = node;
+        dot::LabelText::LabelStr(Cow::Owned(format!("{}", id)))
+    }
+
+    fn edge_label<'b>(&'b self, arc: &Arc) -> dot::LabelText<'b> {
+        let weight = self.arc_weight(arc);
+        dot::LabelText::LabelStr(Cow::Owned(format!("{}", weight)))
+    }
+}
+
+impl<'a> dot::GraphWalk<'a, Node, Arc> for Graph {
+    fn nodes(&self) -> dot::Nodes<'a, Node> {
+        Cow::Owned(self.nodes().iter().cloned().collect::<Vec<Node>>())
+    }
+
+    fn edges(&'a self) -> dot::Edges<'a, Arc> {
+        Cow::Owned(self.arcs().keys().cloned().collect::<Vec<Arc>>())
+    }
+
+    fn source(&self, arc: &Arc) -> Node {
+        let &Arc(src, _) = arc;
+        src
+    }
+
+    fn target(&self, arc: &Arc) -> Node {
+        let &Arc(_, dst) = arc;
+        dst
     }
 }
 

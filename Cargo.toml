@@ -6,6 +6,7 @@ authors = ["elsid <elsid.mail@gmail.com>"]
 [dependencies]
 itertools = "*"
 rand = "*"
+dot = "*"
 
 [dependencies.bobyqa]
 git = "https://github.com/elsid/bobyqa-rs.git"

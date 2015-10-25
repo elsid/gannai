@@ -1,6 +1,8 @@
 extern crate gannai;
-
+extern crate dot;
 extern crate rand;
+
+use std::fs::File;
 
 use rand::thread_rng;
 
@@ -38,6 +40,10 @@ fn main() {
         println!("initial apply {:?}",
                  network_buf.as_network().apply(&apply_conf).perform(sample.input));
     }
+    {
+        let mut f = File::create("initial.dot").unwrap();
+        dot::render(Mutator::from_network(&network_buf.as_network()).graph(), &mut f).unwrap();
+    }
     let train_conf = TrainConf {
         error_conf: &error_conf,
     };
@@ -45,6 +51,10 @@ fn main() {
     for sample in samples.iter() {
         println!("trained apply {:?}",
                  network_buf.as_network().apply(&apply_conf).perform(sample.input));
+    }
+    {
+        let mut f = File::create("trained.dot").unwrap();
+        dot::render(Mutator::from_network(&network_buf.as_network()).graph(), &mut f).unwrap();
     }
     let mut rng = thread_rng();
     let mut evolve_conf = EvolveConf {
@@ -61,5 +71,9 @@ fn main() {
     for sample in samples.iter() {
         println!("evolved apply {:?}",
                  evolved_network_buf.as_network().apply(&apply_conf).perform(sample.input));
+    }
+    {
+        let mut f = File::create("evolved.dot").unwrap();
+        dot::render(evolved.graph(), &mut f).unwrap();
     }
 }
