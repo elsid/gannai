@@ -134,7 +134,7 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
             let mut b = population.iter().collect::<Vec<_>>();
             self.conf.rng.shuffle(&mut a[..]);
             self.conf.rng.shuffle(&mut b[..]);
-            a.iter().zip(b.iter()).map(|(l, h)| l.union(h)).collect::<Vec<_>>()
+            a.iter().zip(b.iter()).map(|(l, r)| l.union(r)).collect::<Vec<_>>()
         };
         new.extend(population.into_iter());
         new

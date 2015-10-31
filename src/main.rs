@@ -24,7 +24,7 @@ fn main() {
     let mut node_id = IdGenerator::new(0);
     let mutator = Mutator::new(&mut node_id, 4, 3, 1e-3);
     let apply_conf = ApplyConf {
-        group_len: 1000,
+        group_size: 1000,
         threshold: 1e-4,
     };
     let samples = [

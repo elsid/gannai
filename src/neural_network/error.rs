@@ -52,7 +52,7 @@ fn test_error_network_with_one_arc_and_one_sample_should_succeed() {
     let weights = Matrix::new(2, &weights_values);
     let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let apply_conf = apply::Conf {group_len: 1, threshold: 1e-3};
+    let apply_conf = apply::Conf {group_size: 1, threshold: 1e-3};
     let input = 0.5;
     let output = 0.5;
     let samples = [
@@ -77,7 +77,7 @@ fn test_error_network_with_one_arc_and_two_samples_should_succeed() {
     let weights = Matrix::new(2, &weights_values);
     let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let apply_conf = apply::Conf {group_len: 1, threshold: 1e-3};
+    let apply_conf = apply::Conf {group_size: 1, threshold: 1e-3};
     let i1 = 0.4;
     let i2 = 0.6;
     let o1 = 0.5;
@@ -107,7 +107,7 @@ fn test_error_network_with_two_arcs_and_two_outputs_should_succeed() {
     let weights = Matrix::new(3, &weights_values);
     let nodes = (0..3).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let apply_conf = apply::Conf {group_len: 1, threshold: 1e-3};
+    let apply_conf = apply::Conf {group_size: 1, threshold: 1e-3};
     let i = 0.4;
     let o1 = 0.4;
     let o2 = 0.6;
