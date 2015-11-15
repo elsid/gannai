@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use super::common::Value;
 use super::network::Network;
 
+#[derive(RustcDecodable)]
 pub struct Conf {
     pub group_size: usize,
     pub threshold: Value,
