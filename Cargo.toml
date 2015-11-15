@@ -3,6 +3,10 @@ name = "gannai"
 version = "0.1.0"
 authors = ["elsid <elsid.mail@gmail.com>"]
 
+[[bin]]
+name = "neural_network_example"
+path = "src/examples/neural_network.rs"
+
 [dependencies]
 itertools = "*"
 rand = "*"
