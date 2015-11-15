@@ -36,7 +36,8 @@ impl<'r> Application<'r> {
     pub fn perform(&self, values: &[Value]) -> Vec<Value> {
         assert!(values.len() >= self.network.inputs.len());
         let group_size = self.conf.group_size as Value;
-        let mut result = BTreeMap::<usize, Value>::new();
+        let mut result: BTreeMap<usize, Value> = self.network.outputs.iter()
+            .map(|&x| (x, 0.0)).collect::<_>();
         {
             let groups = self.network.inputs.iter().zip(values)
                 .map(|(&node, value)| {
@@ -44,8 +45,7 @@ impl<'r> Application<'r> {
                 })
                 .flat_map(|x| x.into_iter());
             for group in groups {
-                let value = result.entry(group.node).or_insert(0.0);
-                *value += group.sum;
+                *result.get_mut(&group.node).unwrap() += group.sum;
             }
         }
         result.values()
@@ -187,4 +187,22 @@ fn test_apply_network_with_two_arcs_and_self_add_arced_input_node_should_succeed
     let expected = [input * w12 * (1.0 + w11 / (2.0 - w11)) / 2.0];
     assert_eq!(actual.len(), expected.len());
     assert!((actual[0] - expected[0]).abs() <= 1e-8);
+}
+
+#[test]
+fn test_apply_network_without_arcs_should_succeed() {
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use super::common::Node;
+    use super::matrix::Matrix;
+    let weights_values = [
+        0.0, 0.0,
+        0.0, 0.0,
+    ];
+    let inputs = [0].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [1].iter().cloned().collect::<HashSet<usize>>();
+    let weights = Matrix::new(2, &weights_values);
+    let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
+    let conf = Conf {group_size: 1000, threshold: 1e-8};
+    assert_eq!(&network.apply(&conf).perform(&[1.0]), &[0.0]);
 }
