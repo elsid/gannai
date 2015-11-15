@@ -7,10 +7,16 @@ authors = ["elsid <elsid.mail@gmail.com>"]
 name = "neural_network_example"
 path = "src/examples/neural_network.rs"
 
+[[bin]]
+name = "generate_neural_network"
+path = "src/tools/generate_neural_network.rs"
+
 [dependencies]
 itertools = "*"
 rand = "*"
 dot = "*"
+argparse = "*"
+rustc-serialize = "*"
 
 [dependencies.bobyqa]
 git = "https://github.com/elsid/bobyqa-rs.git"

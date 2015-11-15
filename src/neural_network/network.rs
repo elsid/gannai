@@ -26,7 +26,7 @@ pub struct Connection {
     pub weight: Weight,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, RustcDecodable, RustcEncodable)]
 pub struct NetworkBuf {
     inputs: BTreeSet<usize>,
     outputs: HashSet<usize>,

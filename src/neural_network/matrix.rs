@@ -71,7 +71,7 @@ impl <'r, T: Clone> MatrixMut<'r, T> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub struct MatrixBuf<T> {
     column_len: usize,
     values: Vec<T>,
