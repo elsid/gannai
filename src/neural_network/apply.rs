@@ -178,8 +178,8 @@ fn test_apply_network_with_two_arcs_and_self_add_arced_input_node_should_succeed
     ];
     let inputs = [0].iter().cloned().collect::<BTreeSet<usize>>();
     let outputs = [1].iter().cloned().collect::<HashSet<usize>>();
-    let weights = Matrix::new(3, &weights_values);
-    let nodes = (0..3).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let weights = Matrix::new(2, &weights_values);
+    let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
     let conf = Conf {group_size: 1000, threshold: 1e-8};
     let input = 0.6;
