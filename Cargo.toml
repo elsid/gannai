@@ -11,6 +11,10 @@ path = "src/examples/neural_network.rs"
 name = "generate_neural_network"
 path = "src/tools/generate_neural_network.rs"
 
+[[bin]]
+name = "evolve_neural_network"
+path = "src/tools/evolve_neural_network.rs"
+
 [dependencies]
 itertools = "*"
 rand = "*"
