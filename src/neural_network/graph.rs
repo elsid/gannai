@@ -9,7 +9,7 @@ use super::common::{Node, Weight};
 pub struct Arc(pub Node, pub Node);
 
 pub type Nodes = HashSet<Node>;
-type Arcs = BTreeMap<Arc, Weight>;
+pub type Arcs = BTreeMap<Arc, Weight>;
 
 #[derive(Clone, Debug)]
 pub struct Graph {
