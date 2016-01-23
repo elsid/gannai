@@ -42,3 +42,48 @@ impl<'network> Train for NetworkMut<'network> {
             .perform(self.weights.values(), &error_function)
     }
 }
+
+#[test]
+fn test_train_should_succeed() {
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use neural_network::common::Node;
+    use neural_network::matrix::MatrixMut;
+    use neural_network::apply::{Conf as ApplyConf};
+    use neural_network::error::{Conf as ErrorConf, Sample};
+    let mut weights_values = [
+        0.1, 0.1,
+        0.1, 0.1,
+    ];
+    let inputs = [0].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [1].iter().cloned().collect::<HashSet<usize>>();
+    {
+        let weights = MatrixMut::new(2, &mut weights_values);
+        let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+        let mut network = NetworkMut {
+            inputs: &inputs,
+            outputs: &outputs,
+            weights: weights,
+            nodes: &nodes
+        };
+        let apply_conf = ApplyConf {
+            group_size: 1000,
+            threshold: 1e-4,
+        };
+        let samples = [
+            Sample {input: &[0.5], output: &[0.4]},
+        ];
+        let error_conf = ErrorConf {
+            apply_conf: &apply_conf,
+            samples: &samples,
+        };
+        let conf = Conf {
+            error_conf: &error_conf,
+        };
+        let error = network.train(&conf);
+        assert_eq!(error, 0.0000000024013835364655733);
+    }
+    assert_eq!(weights_values, [
+        0.7500085532432279, 0.9999933043615582,
+        0.986926343197382, 0.9995644922815343,
+    ]);
+}
