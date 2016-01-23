@@ -3,7 +3,6 @@ extern crate argparse;
 extern crate rand;
 extern crate rustc_serialize;
 
-use rand::thread_rng;
 use rustc_serialize::json;
 
 use gannai::neural_network::NetworkBuf;
@@ -70,6 +69,7 @@ fn make_network_buf(args: &Args) -> NetworkBuf {
 }
 
 fn evolve(conf: &Conf, network_buf: NetworkBuf) -> NetworkBuf {
+    use rand::{XorShiftRng, SeedableRng};
     use gannai::neural_network::{
         ApplyConf,
         ErrorConf,
@@ -95,7 +95,8 @@ fn evolve(conf: &Conf, network_buf: NetworkBuf) -> NetworkBuf {
     let train_conf = TrainConf {
         error_conf: &error_conf,
     };
-    let mut rng = thread_rng();
+    let mut rng = XorShiftRng::new_unseeded();
+    rng.reseed([1, 1, 1, 1]);
     let mut evolve_conf = EvolveConf {
         train_conf: &train_conf,
         rng: &mut rng,

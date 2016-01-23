@@ -4,7 +4,7 @@ extern crate rand;
 
 use std::fs::File;
 
-use rand::thread_rng;
+use rand::{XorShiftRng, SeedableRng};
 
 use gannai::neural_network::{
     Apply,
@@ -56,7 +56,8 @@ fn main() {
         let mut f = File::create("trained.dot").unwrap();
         dot::render(Mutator::from_network(&network_buf.as_network()).graph(), &mut f).unwrap();
     }
-    let mut rng = thread_rng();
+    let mut rng = XorShiftRng::new_unseeded();
+    rng.reseed([1, 1, 1, 1]);
     let mut evolve_conf = EvolveConf {
         train_conf: &train_conf,
         rng: &mut rng,
