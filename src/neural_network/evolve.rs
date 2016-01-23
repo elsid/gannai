@@ -93,7 +93,7 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
         population.into_iter()
             .map(|mut x| {
                 for _ in 0..3 {
-                    match rng.gen_range(0, 2) {
+                    match rng.gen_range(0, 3) {
                         0 => {
                             let arc = x.random_arc(rng);
                             x.split(node_id, &arc);
