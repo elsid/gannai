@@ -1,5 +1,5 @@
 use std::collections::btree_map;
-use std::collections::hash_set;
+use std::collections::btree_set;
 use std::collections::{BTreeSet, HashSet};
 
 use super::common::{Node, Weight};
@@ -44,7 +44,7 @@ impl Mutator {
         &self.graph
     }
 
-    pub fn nodes(&self) -> hash_set::Iter<Node> {
+    pub fn nodes(&self) -> btree_set::Iter<Node> {
         self.graph.nodes().iter()
     }
 

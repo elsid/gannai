@@ -1,14 +1,14 @@
 extern crate dot;
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use super::common::{Node, Weight};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub struct Arc(pub Node, pub Node);
 
-pub type Nodes = HashSet<Node>;
+pub type Nodes = BTreeSet<Node>;
 pub type Arcs = BTreeMap<Arc, Weight>;
 
 #[derive(Clone, Debug)]
