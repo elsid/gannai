@@ -69,21 +69,25 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
     }
 
     pub fn perform(&mut self) -> Mutator {
+        if !self.begin() {
+            return self.mutator.clone();
+        }
         let population = (0..self.conf.population_size)
             .map(|_| self.mutator.clone()).collect::<Vec<_>>();
         let evolved = self.evolve(population);
         self.select_one(evolved)
     }
 
-    fn evolve(&mut self, population: Vec<Mutator>) -> Vec<Mutator> {
-        let mut mutated = self.mutate(population);
-        while !self.terminate(&mutated) {
-            let propagated = self.propagate(mutated);
-            let selected = self.select(propagated);
-            mutated = self.mutate(selected);
+    fn evolve(&mut self, mut population: Vec<Mutator>) -> Vec<Mutator> {
+        loop {
+            let mutated = self.mutate(population);
             self.iterations_count += 1;
+            if self.terminate(&mutated[..]) {
+                return mutated;
+            }
+            let propagated = self.propagate(mutated);
+            population = self.select(propagated);
         }
-        mutated
     }
 
     fn mutate(&mut self, population: Vec<Mutator>) -> Vec<Mutator> {
@@ -120,7 +124,13 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
             .collect()
     }
 
-    fn terminate(&self, population: &Vec<Mutator>) -> bool {
+    fn begin(&self) -> bool {
+        self.iterations_count < self.conf.iterations_count
+        && self.mutator.as_network_buf().as_network().error(self.conf.train_conf.error_conf)
+           > self.conf.error
+    }
+
+    fn terminate(&self, population: &[Mutator]) -> bool {
         self.iterations_count >= self.conf.iterations_count
         || population.iter()
             .map(|x| x.as_network_buf().as_network().error(self.conf.train_conf.error_conf))
@@ -158,4 +168,71 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
             .nth(0)
             .unwrap().1
     }
+}
+
+#[test]
+fn test_evolve_should_succeed() {
+    extern crate rand;
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use self::rand::{XorShiftRng, SeedableRng};
+    use neural_network::apply::{Conf as ApplyConf};
+    use neural_network::error::{Conf as ErrorConf, Sample};
+    use neural_network::train::{Conf as TrainConf};
+    use neural_network::matrix::Matrix;
+    use neural_network::network::Network;
+    let mut weights_values = [
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+    ];
+    let inputs = [0, 1, 2].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [3, 4].iter().cloned().collect::<HashSet<usize>>();
+    let weights = Matrix::new(5, &mut weights_values);
+    let nodes = (0..5).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let network = Network {
+        inputs: &inputs,
+        outputs: &outputs,
+        weights: weights,
+        nodes: &nodes
+    };
+    let mutator = Mutator::from_network(&network);
+    let apply_conf = ApplyConf {
+        group_size: 1000,
+        threshold: 1e-4,
+    };
+    let samples = [
+        Sample {input: &[0.6, 0.7, 0.8], output: &[0.5, 0.4]},
+        Sample {input: &[0.3, 0.4, 0.5], output: &[0.3, 0.4]},
+    ];
+    let error_conf = ErrorConf {
+        apply_conf: &apply_conf,
+        samples: &samples,
+    };
+    let train_conf = TrainConf {
+        error_conf: &error_conf,
+    };
+    let mut rng = XorShiftRng::new_unseeded();
+    rng.reseed([1, 1, 1, 1]);
+    let mut node_id = IdGenerator::new(0);
+    let mut conf = Conf {
+        train_conf: &train_conf,
+        rng: &mut rng,
+        node_id: &mut node_id,
+        population_size: 2,
+        error: 1e-3,
+        iterations_count: 2,
+    };
+    let evolved = mutator.evolve(&mut conf);
+    let evolved_network_buf = evolved.as_network_buf();
+    let evolved_network = evolved_network_buf.as_network();
+    let result: &[f64] = evolved_network.weights.values();
+    assert_eq!(result, &[
+        0.0, 0.0, 0.0, 0.0, 0.49028704348647656,
+        0.0, 0.0, 0.0, 0.4949691958362526, 0.28046393072142795,
+        0.0, 0.0, 0.0, 0.37300793037516183, 0.32337664807119676,
+        0.000049464489018874805, 0.00008103643147741657, 0.00016638669416522351, 0.001251673322024201, 0.00008411499868450062,
+        0.0013426293689717068, 0.0014433214233762046, 0.001525153631654263, 0.5282397259358337, 0.001543939790084261,
+    ] as &[f64]);
 }
