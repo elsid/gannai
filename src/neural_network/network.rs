@@ -35,23 +35,22 @@ pub struct NetworkBuf {
 }
 
 impl NetworkBuf {
-    pub fn new<'r, Connections, OrdNodeIds, NodeIds>(
+    pub fn new<'r, Connections, OrdNodeIds>(
             arcs: Connections,
             inputs: OrdNodeIds,
-            outputs: NodeIds) -> NetworkBuf
+            outputs: OrdNodeIds) -> NetworkBuf
             where Connections: Iterator<Item=Connection> + Clone,
-                  OrdNodeIds: Iterator<Item=&'r Node> + Clone,
-                  NodeIds: Iterator<Item=&'r Node> + Clone {
+                  OrdNodeIds: Iterator<Item=&'r Node> + Clone {
         let mut indicies = HashMap::new();
+        for node in inputs.clone() {
+            NetworkBuf::add_node_index(&mut indicies, *node);
+        }
         for arc in arcs.clone() {
-            if !indicies.contains_key(&arc.src) {
-                let index = indicies.len();
-                indicies.insert(arc.src, index);
-            }
-            if !indicies.contains_key(&arc.dst) {
-                let index = indicies.len();
-                indicies.insert(arc.dst, index);
-            }
+            NetworkBuf::add_node_index(&mut indicies, arc.src);
+            NetworkBuf::add_node_index(&mut indicies, arc.dst);
+        }
+        for node in outputs.clone() {
+            NetworkBuf::add_node_index(&mut indicies, *node);
         }
         let mut weights = MatrixBuf::new(indicies.len(), 0.0);
         {
@@ -83,6 +82,13 @@ impl NetworkBuf {
             outputs: &self.outputs,
             weights: self.weights.as_matrix_mut(),
             nodes: &self.nodes,
+        }
+    }
+
+    fn add_node_index(indicies: &mut HashMap<Node, usize>, node: Node) {
+        if !indicies.contains_key(&node) {
+            let index = indicies.len();
+            indicies.insert(node, index);
         }
     }
 }
