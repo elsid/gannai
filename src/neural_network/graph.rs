@@ -1,7 +1,7 @@
 extern crate dot;
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use super::common::{Node, Weight};
 
@@ -10,11 +10,13 @@ pub struct Arc(pub Node, pub Node);
 
 pub type Nodes = BTreeSet<Node>;
 pub type Arcs = BTreeMap<Arc, Weight>;
+type ArcsCounter = HashMap<Node, usize>;
 
 #[derive(Clone, Debug)]
 pub struct Graph {
     nodes: Nodes,
     arcs: Arcs,
+    arcs_counter: ArcsCounter,
 }
 
 impl Graph {
@@ -22,6 +24,7 @@ impl Graph {
         Graph {
             nodes: Nodes::new(),
             arcs: Arcs::new(),
+            arcs_counter: ArcsCounter::new(),
         }
     }
 
@@ -33,6 +36,14 @@ impl Graph {
         &self.arcs
     }
 
+    pub fn node_arcs_count(&self, id: Node) -> usize {
+        if let Some(value) = self.arcs_counter.get(&id) {
+            *value
+        } else {
+            0
+        }
+    }
+
     pub fn arc_weight(&self, arc: &Arc) -> Weight {
         self.arcs[arc]
     }
@@ -42,6 +53,7 @@ impl Graph {
     }
 
     pub fn rm_node(&mut self, id: Node) {
+        assert_eq!(self.node_arcs_count(id), 0);
         self.nodes.remove(&id);
     }
 
@@ -50,18 +62,23 @@ impl Graph {
         assert!(self.nodes.contains(&dst));
         let arc = Arc(src, dst);
         self.arcs.insert(arc.clone(), weight);
+        Graph::inc_arcs_counter(&mut self.arcs_counter, src);
+        Graph::inc_arcs_counter(&mut self.arcs_counter, dst);
         arc
     }
 
     pub fn rm_arc(&mut self, arc: &Arc) {
         self.arcs.remove(arc);
+        let &Arc(src, dst) = arc;
+        self.dec_arcs_counter(src);
+        self.dec_arcs_counter(dst);
     }
 
     pub fn union(&self, other: &Graph) -> Graph {
         let nodes = self.nodes.union(&other.nodes).cloned().collect();
         let self_arcs = self.arcs.keys().cloned().collect::<HashSet<_>>();
         let other_arcs = other.arcs.keys().cloned().collect::<HashSet<_>>();
-        let arcs = self_arcs.union(&other_arcs).cloned().into_iter()
+        let arcs: Arcs = self_arcs.union(&other_arcs).cloned().into_iter()
             .map(|arc| {
                 let self_w = self.arcs.get(&arc);
                 let other_w = other.arcs.get(&arc);
@@ -69,7 +86,23 @@ impl Graph {
                 let weight = (self_w.unwrap_or(&0.0) + other_w.unwrap_or(&0.0)) / n as Weight;
                 (arc, weight)
             }).collect();
-        Graph {nodes: nodes, arcs: arcs}
+        let mut arcs_counter = ArcsCounter::new();
+        for &Arc(src, dst) in arcs.keys() {
+            Graph::inc_arcs_counter(&mut arcs_counter, src);
+            Graph::inc_arcs_counter(&mut arcs_counter, dst);
+        }
+        Graph {nodes: nodes, arcs: arcs, arcs_counter: arcs_counter}
+    }
+
+    fn inc_arcs_counter(arcs_counter: &mut ArcsCounter, id: Node) {
+        let value = arcs_counter.entry(id).or_insert(0);
+        *value += 1;
+    }
+
+    fn dec_arcs_counter(&mut self, id: Node) {
+        let value = self.arcs_counter.get_mut(&id).unwrap();
+        assert!(*value > 0);
+        *value -= 1;
     }
 }
 
@@ -127,11 +160,23 @@ fn test_add_node_should_succeed() {
 }
 
 #[test]
-fn test_rm_node_should_succeed() {
+fn test_rm_node_without_arcs_should_succeed() {
     let mut graph = Graph::new();
     graph.add_node(Node(42));
     graph.rm_node(Node(42));
     assert!(graph.nodes().is_empty());
+}
+
+#[test]
+#[should_panic]
+fn test_rm_node_with_arcs_should_panic() {
+    let mut graph = Graph::new();
+    let src = Node(1);
+    let dst = Node(2);
+    graph.add_node(src);
+    graph.add_node(dst);
+    graph.add_arc(src, dst, 1.0);
+    graph.rm_node(src);
 }
 
 #[test]
@@ -145,6 +190,8 @@ fn test_add_arc_should_succeed() {
     let arc = graph.add_arc(src, dst, weight);
     assert_eq!(arc, Arc(src, dst));
     assert_eq!(graph.arcs()[&arc], weight);
+    assert_eq!(graph.node_arcs_count(src), 1);
+    assert_eq!(graph.node_arcs_count(dst), 1);
 }
 
 #[test]
