@@ -61,7 +61,7 @@ impl<'r> Application<'r> {
             let row = self.network.weights.row(group.node);
             let nodes = row.iter()
                 .enumerate()
-                .filter(|&(_, &w)| w > 0.0)
+                .filter(|&(_, &w)| w.abs() > 0.0)
                 .map(|(n, &w)| (n, w))
                 .collect::<Vec<(usize, Value)>>();
             let new_sum = group.sum / nodes.len() as Value;
@@ -79,11 +79,31 @@ impl<'r> Application<'r> {
 }
 
 #[test]
-fn test_apply_network_with_one_arc_should_succeed() {
+fn test_apply_network_contains_one_arc_with_positive_weight_should_succeed() {
     use std::collections::{BTreeSet, HashMap, HashSet};
     use super::common::Node;
     use super::matrix::Matrix;
     let weight = 0.4;
+    let weights_values = [
+        0.0, weight,
+        0.0, 0.0,
+    ];
+    let inputs = [0].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [1].iter().cloned().collect::<HashSet<usize>>();
+    let weights = Matrix::new(2, &weights_values);
+    let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
+    let conf = Conf {group_size: 1, threshold: 1e-3};
+    let input = 0.6;
+    assert_eq!(&network.apply(&conf).perform(&[input])[..], &[input * weight]);
+}
+
+#[test]
+fn test_apply_network_contains_one_arc_with_negative_weight_should_succeed() {
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use super::common::Node;
+    use super::matrix::Matrix;
+    let weight = -0.4;
     let weights_values = [
         0.0, weight,
         0.0, 0.0,
