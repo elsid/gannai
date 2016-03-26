@@ -26,7 +26,7 @@ fn main() {
 fn parse_args(args: &mut Args) {
     use argparse::{ArgumentParser, Store};
     let mut parser = ArgumentParser::new();
-    parser.set_description("Evolves neural network by using samples");
+    parser.set_description("Applies neural network to input data");
     parser.refer(&mut args.conf)
         .add_argument("conf", Store, "Path to conf json file").required();
     parser.refer(&mut args.network)
