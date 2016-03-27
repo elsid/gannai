@@ -23,6 +23,10 @@ path = "src/tools/apply_neural_network.rs"
 name = "neural_network_to_dot"
 path = "src/tools/neural_network_to_dot.rs"
 
+[[bin]]
+name = "train_neural_network"
+path = "src/tools/train_neural_network.rs"
+
 [dependencies]
 itertools = "*"
 rand = "*"
