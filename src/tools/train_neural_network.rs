@@ -22,6 +22,7 @@ struct Conf {
     group_size: usize,
     threshold: f64,
     samples: Vec<Sample>,
+    max_function_calls_count: usize,
 }
 
 fn main() {
@@ -85,6 +86,7 @@ fn train(conf: &Conf, network_buf: &mut NetworkBuf) {
     };
     let train_conf = TrainConf {
         error_conf: &error_conf,
+        max_function_calls_count: conf.max_function_calls_count,
     };
     network_buf.as_network_mut().train(&train_conf);
 }

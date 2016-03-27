@@ -10,6 +10,7 @@ use super::network::{Network, NetworkMut};
 
 pub struct Conf<'r> {
     pub error_conf: &'r error::Conf<'r>,
+    pub max_function_calls_count: usize,
 }
 
 pub trait Train {
@@ -39,6 +40,7 @@ impl<'network> Train for NetworkMut<'network> {
             .number_of_interpolation_conditions(variables_count + 2)
             .lower_bound(&lower_bound[..])
             .upper_bound(&upper_bound[..])
+            .max_function_calls_count(conf.max_function_calls_count)
             .perform(self.weights.values(), &error_function)
     }
 }
@@ -78,6 +80,7 @@ fn test_train_should_succeed() {
         };
         let conf = Conf {
             error_conf: &error_conf,
+            max_function_calls_count: 71,
         };
         let error = network.train(&conf);
         assert_eq!(error, 0.0000000024013835364655733);

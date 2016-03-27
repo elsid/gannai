@@ -212,6 +212,7 @@ fn test_evolve_should_succeed() {
     };
     let train_conf = TrainConf {
         error_conf: &error_conf,
+        max_function_calls_count: 111,
     };
     let mut rng = XorShiftRng::new_unseeded();
     rng.reseed([1, 1, 1, 1]);

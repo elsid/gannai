@@ -46,6 +46,7 @@ fn main() {
     }
     let train_conf = TrainConf {
         error_conf: &error_conf,
+        max_function_calls_count: 1000,
     };
     println!("trained error: {}", network_buf.as_network_mut().train(&train_conf));
     for sample in samples.iter() {

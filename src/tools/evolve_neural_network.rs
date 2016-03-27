@@ -22,10 +22,11 @@ struct Sample {
 struct Conf {
     group_size: usize,
     threshold: f64,
-    population_size: usize,
-    error: f64,
-    iterations_count: usize,
     samples: Vec<Sample>,
+    max_function_calls_count: usize,
+    error: f64,
+    population_size: usize,
+    iterations_count: usize,
 }
 
 fn main() {
@@ -94,6 +95,7 @@ fn evolve(conf: &Conf, network_buf: NetworkBuf) -> NetworkBuf {
     };
     let train_conf = TrainConf {
         error_conf: &error_conf,
+        max_function_calls_count: conf.max_function_calls_count,
     };
     let mut rng = XorShiftRng::new_unseeded();
     rng.reseed([1, 1, 1, 1]);
