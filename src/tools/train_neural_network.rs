@@ -5,32 +5,28 @@ extern crate rustc_serialize;
 use rustc_serialize::json;
 
 use gannai::neural_network::NetworkBuf;
+use gannai::tools::common::{Sample, make_conf, make_samples, make_network_buf};
 
 struct Args {
     conf: String,
+    samples: String,
     network: String,
-}
-
-#[derive(RustcDecodable)]
-struct Sample {
-    input: Vec<f64>,
-    output: Vec<f64>,
 }
 
 #[derive(RustcDecodable)]
 struct Conf {
     group_size: usize,
     threshold: f64,
-    samples: Vec<Sample>,
     max_function_calls_count: usize,
 }
 
 fn main() {
-    let mut args = Args {conf: String::new(), network: String::new()};
+    let mut args = Args {conf: String::new(), samples: String::new(), network: String::new()};
     parse_args(&mut args);
-    let conf = make_conf(&args);
-    let mut network_buf = make_network_buf(&args);
-    train(&conf, &mut network_buf);
+    let conf = make_conf::<Conf>(&args.conf);
+    let mut network_buf = make_network_buf(&args.network);
+    let samples = make_samples(&args.samples);
+    train(&conf, &samples, &mut network_buf);
     println!("{}", json::encode(&network_buf).unwrap());
 }
 
@@ -41,31 +37,13 @@ fn parse_args(args: &mut Args) {
     parser.refer(&mut args.conf)
         .add_argument("conf", Store, "Path to conf json file").required();
     parser.refer(&mut args.network)
-        .add_argument("network", Store, "Path to neural network json file (default is stdin)");
+        .add_argument("network", Store, "Path to neural network json file").required();
+    parser.refer(&mut args.samples)
+        .add_argument("samples", Store, "Path to samples json file (default is stdin)");
     parser.parse_args_or_exit();
 }
 
-fn make_conf(args: &Args) -> Conf {
-    use std::io::Read;
-    use std::fs::File;
-    let mut data = String::new();
-    File::open(&args.conf).unwrap().read_to_string(&mut data).unwrap();
-    json::decode(&data).unwrap()
-}
-
-fn make_network_buf(args: &Args) -> NetworkBuf {
-    use std::io::{Read, stdin};
-    use std::fs::File;
-    let mut data = String::new();
-    if args.network.is_empty() {
-        stdin().read_to_string(&mut data).unwrap();
-    } else {
-        File::open(&args.network).unwrap().read_to_string(&mut data).unwrap();
-    }
-    json::decode(&data).unwrap()
-}
-
-fn train(conf: &Conf, network_buf: &mut NetworkBuf) {
+fn train(conf: &Conf, src_samples: &[Sample], network_buf: &mut NetworkBuf) {
     use gannai::neural_network::{
         ApplyConf,
         ErrorConf,
@@ -77,7 +55,7 @@ fn train(conf: &Conf, network_buf: &mut NetworkBuf) {
         group_size: conf.group_size,
         threshold: conf.threshold,
     };
-    let samples: Vec<Sample> = conf.samples.iter()
+    let samples: Vec<Sample> = src_samples.iter()
         .map(|x| Sample {input: &x.input[..], output: &x.output[..]})
         .collect::<_>();
     let error_conf = ErrorConf {
