@@ -9,7 +9,7 @@ cache:
 addons:
   apt:
     sources:
-      - llvm-toolchain-precise
+      - llvm-toolchain-precise-3.8
       - ubuntu-toolchain-r-test
     packages:
       - clang-3.8
@@ -39,3 +39,7 @@ after_success:
   - make install
   - cd ../..
   - kcov --coveralls-id=${TRAVIS_JOB_ID} --exclude-pattern=/.cargo target/kcov target/debug/gannai-*
+
+after_failure:
+  - cat ${HOME}/.cargo/git/checkouts/bobyqa-cpp-*/**/build.log
+  - cat ${HOME}/.cargo/git/checkouts/bobyqa-rs-*/**/build.log
