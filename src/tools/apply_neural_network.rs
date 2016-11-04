@@ -40,8 +40,8 @@ fn apply(conf: &ApplyConf, network: &Network) {
     for line in file.lock().lines() {
         let data = line.unwrap();
         let input: Input = json::decode(&data).unwrap();
-        let output_values = application.perform(&input.input[..]);
-        let output = Output {input: input.input, output: output_values};
+        let result_values = application.perform(&input.input[..]);
+        let output = Output {input: input.input, output: input.output, result: result_values};
         println!("{}", json::encode(&output).unwrap());
     }
 }
@@ -49,10 +49,12 @@ fn apply(conf: &ApplyConf, network: &Network) {
 #[derive(RustcDecodable)]
 struct Input {
     input: Vec<f64>,
+    output: Option<Vec<f64>>,
 }
 
 #[derive(RustcEncodable)]
 struct Output {
     input: Vec<f64>,
-    output: Vec<f64>,
+    output: Option<Vec<f64>>,
+    result: Vec<f64>,
 }
