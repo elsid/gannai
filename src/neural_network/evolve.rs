@@ -1,5 +1,6 @@
 extern crate itertools;
 extern crate rand;
+extern crate rayon;
 
 use self::itertools::Itertools;
 
@@ -91,9 +92,11 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
     }
 
     fn mutate(&mut self, population: Vec<Mutator>) -> Vec<Mutator> {
+        use self::rayon::prelude::{IntoParallelIterator, ParallelIterator, ExactParallelIterator};
         let ref mut node_id = self.conf.node_id;
         let ref mut rng = self.conf.rng;
         let ref train_conf = self.conf.train_conf;
+        let mut result = Vec::new();
         population.into_iter()
             .map(|mut x| {
                 for _ in 0..3 {
@@ -116,12 +119,15 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
                 }
                 x
             })
+            .collect::<Vec<_>>()
+            .into_par_iter()
             .map(|x| {
                 let mut network_buf = x.as_network_buf();
                 network_buf.as_network_mut().train(train_conf);
                 Mutator::from_network(&network_buf.as_network())
             })
-            .collect()
+            .collect_into(&mut result);
+        result
     }
 
     fn begin(&self) -> bool {

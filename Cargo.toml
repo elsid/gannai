@@ -28,10 +28,11 @@ name = "train_neural_network"
 path = "src/tools/train_neural_network.rs"
 
 [dependencies]
+argparse = "*"
+dot = "*"
 itertools = "*"
 rand = "*"
-dot = "*"
-argparse = "*"
+rayon = "*"
 rustc-serialize = "*"
 
 [dependencies.bobyqa]
