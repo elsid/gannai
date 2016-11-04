@@ -54,9 +54,9 @@ impl<'r> Application<'r> {
             .collect::<Vec<Value>>()
     }
 
-    fn perform_one(&self, group: ValuesGroup) -> Box<Iterator<Item=ValuesGroup>> {
+    fn perform_one(&self, group: ValuesGroup) -> Vec<ValuesGroup> {
         if self.network.outputs.contains(&group.node) {
-            Box::new(vec![group].into_iter())
+            vec![group]
         } else if group.sum > self.conf.threshold {
             let row = self.network.weights.row(group.node);
             let nodes = row.iter()
@@ -65,15 +65,14 @@ impl<'r> Application<'r> {
                 .map(|(n, &w)| (n, w))
                 .collect::<Vec<(usize, Value)>>();
             let new_sum = group.sum / nodes.len() as Value;
-            Box::new(nodes.iter()
+            nodes.iter()
                 .map(|&(node, weight)| {
                     self.perform_one(ValuesGroup {sum: new_sum * weight, node: node})
                 })
                 .flat_map(|x| x.into_iter())
                 .collect::<Vec<_>>()
-                .into_iter())
         } else {
-            Box::new(vec![].into_iter())
+            vec![]
         }
     }
 }
