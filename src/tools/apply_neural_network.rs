@@ -3,12 +3,10 @@ extern crate argparse;
 extern crate rand;
 extern crate rustc_serialize;
 
-use std::io::Read;
-use std::fs::File;
-
 use rustc_serialize::json;
 
-use gannai::neural_network::{ApplyConf, NetworkBuf, Network};
+use gannai::neural_network::{ApplyConf, Network};
+use gannai::tools::common::{make_conf, make_network_buf};
 
 struct Args {
     conf: String,
@@ -18,8 +16,8 @@ struct Args {
 fn main() {
     let mut args = Args {conf: String::new(), network: String::new()};
     parse_args(&mut args);
-    let conf = make_conf(&args);
-    let network_buf = make_network_buf(&args);
+    let conf = make_conf::<ApplyConf>(&args.conf);
+    let network_buf = make_network_buf(&args.network);
     apply(&conf, &network_buf.as_network());
 }
 
@@ -34,18 +32,6 @@ fn parse_args(args: &mut Args) {
     parser.parse_args_or_exit();
 }
 
-fn make_conf(args: &Args) -> ApplyConf {
-    let mut data = String::new();
-    File::open(&args.conf).unwrap().read_to_string(&mut data).unwrap();
-    json::decode(&data).unwrap()
-}
-
-fn make_network_buf(args: &Args) -> NetworkBuf {
-    let mut data = String::new();
-    File::open(&args.network).unwrap().read_to_string(&mut data).unwrap();
-    json::decode(&data).unwrap()
-}
-
 fn apply(conf: &ApplyConf, network: &Network) {
     use std::io::{BufRead, stdin};
     use gannai::neural_network::Apply;
@@ -53,8 +39,20 @@ fn apply(conf: &ApplyConf, network: &Network) {
     let file = stdin();
     for line in file.lock().lines() {
         let data = line.unwrap();
-        let input: Vec<f64> = json::decode(&data).unwrap();
-        let output = application.perform(&input[..]);
+        let input: Input = json::decode(&data).unwrap();
+        let output_values = application.perform(&input.input[..]);
+        let output = Output {input: input.input, output: output_values};
         println!("{}", json::encode(&output).unwrap());
     }
+}
+
+#[derive(RustcDecodable)]
+struct Input {
+    input: Vec<f64>,
+}
+
+#[derive(RustcEncodable)]
+struct Output {
+    input: Vec<f64>,
+    output: Vec<f64>,
 }
