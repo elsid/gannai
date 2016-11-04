@@ -131,6 +131,9 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
     }
 
     fn terminate(&self, population: &[Mutator]) -> bool {
+        use std::io::{Write, stderr};
+        write!(&mut stderr(), "Evolve {}/{} iterations done\n",
+               self.iterations_count, self.conf.iterations_count).unwrap();
         self.iterations_count >= self.conf.iterations_count
         || population.iter()
             .map(|x| x.as_network_buf().as_network().error(self.conf.train_conf.error_conf))
