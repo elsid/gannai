@@ -1,4 +1,6 @@
-use std::collections::BTreeMap;
+extern crate rayon;
+
+use std::collections::HashMap;
 
 use super::common::Value;
 use super::network::Network;
@@ -35,28 +37,34 @@ impl<'r> Application<'r> {
     }
 
     pub fn perform(&self, values: &[Value]) -> Vec<Value> {
+        use std::ops::{AddAssign, Deref, DerefMut};
+        use std::sync::{Arc, Mutex};
+        use self::rayon::prelude::*;
         assert!(values.len() >= self.network.inputs.len());
         let group_size = self.conf.group_size as Value;
-        let mut result: BTreeMap<usize, Value> = self.network.outputs.iter()
-            .map(|&x| (x, 0.0)).collect::<_>();
-        {
-            let groups = self.network.inputs.iter().zip(values)
-                .map(|(&node, value)| {
-                    self.perform_one(ValuesGroup {sum: value * group_size, node: node})
-                })
-                .flat_map(|x| x.into_iter());
-            for group in groups {
-                *result.get_mut(&group.node).unwrap() += group.sum;
-            }
-        }
-        result.values()
-            .map(|x| x / group_size as Value)
+        let result = Arc::new(Mutex::new(self.network.outputs.iter()
+            .map(|&x| (x, 0.0)).collect::<HashMap<usize, Value>>()));
+        self.network.inputs.par_iter().zip(values)
+            .map(|(&node, value)| {
+                self.perform_one(ValuesGroup {sum: value * group_size, node: node})
+            })
+            .for_each(|groups| {
+                for group in groups {
+                    let mut guarded = result.lock().unwrap();
+                    guarded.deref_mut().get_mut(&group.node).unwrap().add_assign(group.sum);
+                }
+            });
+        let guarded = result.lock().unwrap();
+        let mut values = guarded.deref().into_iter().collect::<Vec<_>>();
+        values.sort_by_key(|&(group, _)| group);
+        values.into_iter()
+            .map(|(_, value)| value / group_size as Value)
             .collect::<Vec<Value>>()
     }
 
-    fn perform_one(&self, group: ValuesGroup) -> Box<Iterator<Item=ValuesGroup>> {
+    fn perform_one(&self, group: ValuesGroup) -> Vec<ValuesGroup> {
         if self.network.outputs.contains(&group.node) {
-            Box::new(vec![group].into_iter())
+            vec![group]
         } else if group.sum > self.conf.threshold {
             let row = self.network.weights.row(group.node);
             let nodes = row.iter()
@@ -65,15 +73,14 @@ impl<'r> Application<'r> {
                 .map(|(n, &w)| (n, w))
                 .collect::<Vec<(usize, Value)>>();
             let new_sum = group.sum / nodes.len() as Value;
-            Box::new(nodes.iter()
+            nodes.iter()
                 .map(|&(node, weight)| {
                     self.perform_one(ValuesGroup {sum: new_sum * weight, node: node})
                 })
                 .flat_map(|x| x.into_iter())
                 .collect::<Vec<_>>()
-                .into_iter())
         } else {
-            Box::new(vec![].into_iter())
+            vec![]
         }
     }
 }
