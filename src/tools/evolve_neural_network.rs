@@ -48,14 +48,16 @@ fn parse_args(args: &mut Args) {
 }
 
 fn evolve(conf: &Conf, src_samples: &[Sample], network_buf: NetworkBuf) -> NetworkBuf {
+    use std::io::{Write, stderr};
     use rand::{XorShiftRng, SeedableRng};
     use gannai::neural_network::{
         ApplyConf,
+        Error,
         ErrorConf,
-        Mutator,
         Evolve,
         EvolveConf,
         IdGenerator,
+        Mutator,
         Sample,
         TrainConf,
     };
@@ -85,5 +87,11 @@ fn evolve(conf: &Conf, src_samples: &[Sample], network_buf: NetworkBuf) -> Netwo
         error: conf.error,
         iterations_count: conf.iterations_count,
     };
-    Mutator::from_network(&network_buf.as_network()).evolve(&mut evolve_conf).as_network_buf()
+    let network = network_buf.as_network();
+    let initial_error = network.error(&error_conf);
+    writeln!(stderr(), "Initial error: {}", initial_error).unwrap();
+    let result = Mutator::from_network(&network).evolve(&mut evolve_conf).as_network_buf();
+    let final_error = result.as_network().error(&error_conf);
+    writeln!(stderr(), "Final error: {} (improved by {} times)", final_error, initial_error / final_error).unwrap();
+    result
 }
