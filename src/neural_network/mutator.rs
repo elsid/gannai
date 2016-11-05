@@ -1,15 +1,14 @@
 use std::collections::btree_map;
-use std::collections::btree_set;
 use std::collections::BTreeSet;
 
 use super::common::{Node, Weight};
-use super::graph::Graph;
+use super::graph::{Graph, NodeArcs};
 use super::id_generator::IdGenerator;
 use super::network::{Connection, Network, NetworkBuf};
 
 pub use super::graph::Arc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Mutator {
     inputs: BTreeSet<Node>,
     outputs: BTreeSet<Node>,
@@ -28,9 +27,13 @@ impl Mutator {
             .collect::<BTreeSet<_>>();
         let mut graph = Graph::new();
         for input in inputs.iter() {
-            graph.add_node(*input);
+            if !graph.nodes().contains_key(input) {
+                graph.add_node(*input);
+            }
             for output in outputs.iter() {
-                graph.add_node(*output);
+                if !graph.nodes().contains_key(output) {
+                    graph.add_node(*output);
+                }
                 graph.add_arc(*input, *output, weight);
             }
         }
@@ -45,8 +48,8 @@ impl Mutator {
         &self.graph
     }
 
-    pub fn nodes(&self) -> btree_set::Iter<Node> {
-        self.graph.nodes().iter()
+    pub fn nodes(&self) -> btree_map::Keys<Node, NodeArcs> {
+        self.graph.nodes().keys()
     }
 
     pub fn arcs(&self) -> btree_map::Keys<Arc, Weight> {
@@ -60,14 +63,14 @@ impl Mutator {
 
     pub fn rm_arc(&mut self, arc: &Arc) -> &mut Self {
         self.graph.rm_arc(arc);
-        let &Arc(src, dst) = arc;
-        self.rm_node_if_need(src);
-        self.rm_node_if_need(dst);
         self
     }
 
     pub fn split(&mut self, node_id: &mut IdGenerator, arc: &Arc) -> &mut Self {
-        let middle = Node(node_id.generate());
+        let mut middle = Node(node_id.generate());
+        while self.graph.nodes().contains_key(&middle) {
+            middle = Node(node_id.generate());
+        }
         self.graph.add_node(middle);
         let &Arc(src, dst) = arc;
         let weight = self.graph.arcs()[arc].sqrt();
@@ -97,13 +100,8 @@ impl Mutator {
                 }
             }
         }
-        let inputs = network.inputs.iter().map(|v| network.nodes[v]).collect::<_>();
-        let outputs = network.outputs.iter().map(|v| network.nodes[v]).collect::<_>();
-        for (_, &node) in network.nodes.iter() {
-            if Mutator::need_rm_node(node, &inputs, &outputs, &graph) {
-                graph.rm_node(node);
-            }
-        }
+        let inputs = network.inputs.iter().map(|v| network.nodes[v]).collect::<BTreeSet<_>>();
+        let outputs = network.outputs.iter().map(|v| network.nodes[v]).collect::<BTreeSet<_>>();
         Mutator {inputs: inputs, outputs: outputs, graph: graph}
     }
 
@@ -115,14 +113,26 @@ impl Mutator {
         }
     }
 
-    fn rm_node_if_need(&mut self, id: Node) {
-        if Mutator::need_rm_node(id, &self.inputs, &self.outputs, &self.graph) {
-            self.graph.rm_node(id);
+    pub fn rm_useless(&mut self) -> &mut Self {
+        use std::collections::HashSet;
+        let nodes = self.graph.unreachable_from(self.inputs.iter())
+            .union(&self.graph.unreachable_to(self.outputs.iter()))
+            .cloned().collect::<HashSet<_>>()
+            .difference(&self.inputs.union(&self.outputs).cloned().collect::<HashSet<_>>())
+            .cloned().collect::<Vec<_>>();
+        let arcs = nodes.iter()
+            .flat_map(|x| {
+                let node_arcs = self.graph.nodes().get(x).unwrap();
+                node_arcs.outgoing.union(&node_arcs.incoming).cloned()
+            })
+            .collect::<HashSet<_>>();
+        for arc in arcs.iter() {
+            self.graph.rm_arc(arc);
         }
-    }
-
-    fn need_rm_node(id: Node, inputs: &BTreeSet<Node>, outputs: &BTreeSet<Node>,graph: &Graph) -> bool {
-        graph.node_arcs_count(id) == 0 && !inputs.contains(&id) && !outputs.contains(&id)
+        for node in nodes.iter() {
+            self.graph.rm_node(node);
+        }
+        self
     }
 }
 
@@ -160,4 +170,59 @@ fn test_rm_last_arc_for_not_input_or_output_should_rm_node() {
         0.0, 0.0,
         0.0, 0.0,
     ]);
+}
+
+#[test]
+fn test_rm_useless_for_node_not_input_and_not_output_without_incoming_arcs_should_rm_arc_and_node() {
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use neural_network::matrix::Matrix;
+    use neural_network::network::Network;
+    let mut weights_values = [
+        0.0, 0.0, 0.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 0.0,
+    ];
+    let inputs = [0].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [2].iter().cloned().collect::<HashSet<usize>>();
+    let weights = Matrix::new(3, &mut weights_values);
+    let nodes = (0..3).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let network = Network {
+        inputs: &inputs,
+        outputs: &outputs,
+        weights: weights,
+        nodes: &nodes
+    };
+    let mut mutator = Mutator::from_network(&network);
+    mutator.rm_useless();
+    let network_buf = mutator.as_network_buf();
+    let result = network_buf.as_network();
+    assert_eq!(result.weights.values(), [
+        0.0, 0.0,
+        0.0, 0.0,
+    ]);
+}
+
+#[test]
+fn test_rm_useless_for_not_connected_only_input_and_output_nodes_should_do_nothing() {
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use neural_network::matrix::Matrix;
+    use neural_network::network::Network;
+    let mut weights_values = [
+        0.0, 0.0,
+        0.0, 0.0,
+    ];
+    let inputs = [0].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [1].iter().cloned().collect::<HashSet<usize>>();
+    let weights = Matrix::new(2, &mut weights_values);
+    let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let network = Network {
+        inputs: &inputs,
+        outputs: &outputs,
+        weights: weights,
+        nodes: &nodes
+    };
+    let mut mutator = Mutator::from_network(&network);
+    let expected = mutator.clone();
+    mutator.rm_useless();
+    assert_eq!(expected, mutator);
 }
