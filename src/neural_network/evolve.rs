@@ -252,3 +252,71 @@ fn test_evolve_should_succeed() {
         0.0, 0.0, 0.0, 0.5829220793286896  , 0.0                   , 0.0               , 0.0,
     ] as &[f64]);
 }
+
+#[test]
+fn test_evolve_zero_iterations_should_do_nothing() {
+    extern crate rand;
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use self::rand::{XorShiftRng, SeedableRng};
+    use neural_network::apply::{Conf as ApplyConf};
+    use neural_network::error::{Conf as ErrorConf, Sample};
+    use neural_network::train::{Conf as TrainConf};
+    use neural_network::matrix::Matrix;
+    use neural_network::network::Network;
+    let mut weights_values = [
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+    ];
+    let inputs = [0, 1, 2].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [3, 4].iter().cloned().collect::<HashSet<usize>>();
+    let weights = Matrix::new(5, &mut weights_values);
+    let nodes = (0..5).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let network = Network {
+        inputs: &inputs,
+        outputs: &outputs,
+        weights: weights,
+        nodes: &nodes
+    };
+    let mutator = Mutator::from_network(&network);
+    let apply_conf = ApplyConf {
+        group_size: 1000,
+        threshold: 1e-4,
+    };
+    let samples = [
+        Sample {input: &[0.6, 0.7, 0.8], output: &[0.5, 0.4]},
+        Sample {input: &[0.3, 0.4, 0.5], output: &[0.3, 0.4]},
+    ];
+    let error_conf = ErrorConf {
+        apply_conf: &apply_conf,
+        samples: &samples,
+    };
+    let train_conf = TrainConf {
+        error_conf: &error_conf,
+        max_function_calls_count: 111,
+    };
+    let mut rng = XorShiftRng::new_unseeded();
+    rng.reseed([1, 1, 1, 1]);
+    let mut node_id = IdGenerator::new(0);
+    let mut conf = Conf {
+        train_conf: &train_conf,
+        rng: &mut rng,
+        node_id: &mut node_id,
+        population_size: 2,
+        error: 1e-3,
+        iterations_count: 0,
+    };
+    let evolved = mutator.evolve(&mut conf);
+    let evolved_network_buf = evolved.as_network_buf();
+    let evolved_network = evolved_network_buf.as_network();
+    let result: &[f64] = evolved_network.weights.values();
+    assert_eq!(result, &[
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.1, 0.1,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+    ] as &[f64]);
+}
