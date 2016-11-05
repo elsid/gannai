@@ -56,6 +56,11 @@ impl MutatorRandom for Mutator {
     }
 }
 
+struct Mutation {
+    mutator: Mutator,
+    error: Value,
+}
+
 struct Evolution<'c, 'f, RngT: 'c + Rng> {
     conf: &'c mut Conf<'c, RngT>,
     mutator: &'f Mutator,
@@ -73,17 +78,19 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
         if !self.begin() {
             return self.mutator.clone();
         }
+        let error = self.mutator.as_network_buf().as_network().error(self.conf.train_conf.error_conf);
         let population = (0..self.conf.population_size)
-            .map(|_| self.mutator.clone()).collect::<Vec<_>>();
+            .map(|_| Mutation {mutator: self.mutator.clone(), error: error})
+            .collect::<Vec<_>>();
         let evolved = self.evolve(population);
         self.select_one(evolved)
     }
 
-    fn evolve(&mut self, mut population: Vec<Mutator>) -> Vec<Mutator> {
+    fn evolve(&mut self, mut population: Vec<Mutation>) -> Vec<Mutation> {
         loop {
             let mutated = self.mutate(population);
             self.iterations_count += 1;
-            if self.terminate(&mutated[..]) {
+            if self.terminate(&mutated) {
                 return mutated;
             }
             let propagated = self.propagate(mutated);
@@ -91,13 +98,14 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
         }
     }
 
-    fn mutate(&mut self, population: Vec<Mutator>) -> Vec<Mutator> {
+    fn mutate(&mut self, population: Vec<Mutation>) -> Vec<Mutation> {
         use self::rayon::prelude::{IntoParallelIterator, ParallelIterator, ExactParallelIterator};
         let ref mut node_id = self.conf.node_id;
         let ref mut rng = self.conf.rng;
         let ref train_conf = self.conf.train_conf;
         let mut result = Vec::new();
         population.into_iter()
+            .map(|x| x.mutator)
             .map(|mut x| {
                 for _ in 0..3 {
                     match rng.gen_range(0, 3) {
@@ -127,8 +135,11 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
             .into_par_iter()
             .map(|x| {
                 let mut network_buf = x.as_network_buf();
-                network_buf.as_network_mut().train(train_conf);
-                Mutator::from_network(&network_buf.as_network())
+                let error = network_buf.as_network_mut().train(train_conf);
+                Mutation {
+                    mutator: Mutator::from_network(&network_buf.as_network()),
+                    error: error,
+                }
             })
             .collect_into(&mut result);
         result
@@ -140,46 +151,48 @@ impl<'c, 'f, RngT: 'c + Rng> Evolution<'c, 'f, RngT> {
            > self.conf.error
     }
 
-    fn terminate(&self, population: &[Mutator]) -> bool {
+    fn terminate(&self, population: &Vec<Mutation>) -> bool {
         use std::io::{Write, stderr};
-        write!(&mut stderr(), "Evolve {}/{} iterations done\n",
+        writeln!(stderr(), "Evolve {}/{} iterations done",
                self.iterations_count, self.conf.iterations_count).unwrap();
         self.iterations_count >= self.conf.iterations_count
         || population.iter()
-            .map(|x| x.as_network_buf().as_network().error(self.conf.train_conf.error_conf))
-            .filter(|&x| x <= self.conf.error)
+            .filter(|x| x.error <= self.conf.error)
             .count() > 0
     }
 
-    fn propagate(&mut self, population: Vec<Mutator>) -> Vec<Mutator> {
+    fn propagate(&mut self, population: Vec<Mutation>) -> Vec<Mutation> {
         let mut new = {
             let mut a = population.iter().collect::<Vec<_>>();
             let mut b = population.iter().collect::<Vec<_>>();
             self.conf.rng.shuffle(&mut a[..]);
             self.conf.rng.shuffle(&mut b[..]);
-            a.iter().zip(b.iter()).map(|(l, r)| l.union(r)).collect::<Vec<_>>()
+            a.iter()
+                .zip(b.iter())
+                .map(|(l, r)| {
+                    let mutator = l.mutator.union(&r.mutator);
+                    let error = mutator.as_network_buf().as_network().error(self.conf.train_conf.error_conf);
+                    Mutation {mutator: mutator, error: error}
+                })
+                .collect::<Vec<_>>()
         };
         new.extend(population.into_iter());
         new
     }
 
-    fn select(&self, population: Vec<Mutator>) -> Vec<Mutator> {
+    fn select(&self, population: Vec<Mutation>) -> Vec<Mutation> {
         population.into_iter()
-            .map(|x| (x.as_network_buf().as_network().error(self.conf.train_conf.error_conf), x))
-            .sorted_by(|l, r| l.0.partial_cmp(&r.0).unwrap())
+            .sorted_by(|l, r| l.error.partial_cmp(&r.error).unwrap())
             .into_iter()
             .take(self.conf.population_size)
-            .map(|x| x.1)
             .collect()
     }
 
-    fn select_one(&self, population: Vec<Mutator>) -> Mutator {
+    fn select_one(&self, population: Vec<Mutation>) -> Mutator {
         population.into_iter()
-            .map(|x| (x.as_network_buf().as_network().error(self.conf.train_conf.error_conf), x))
-            .sorted_by(|l, r| l.0.partial_cmp(&r.0).unwrap())
+            .sorted_by(|l, r| l.error.partial_cmp(&r.error).unwrap())
             .into_iter()
-            .nth(0)
-            .unwrap().1
+            .nth(0).unwrap().mutator
     }
 }
 
