@@ -15,7 +15,6 @@ struct Args {
 
 #[derive(RustcDecodable)]
 struct Conf {
-    group_size: usize,
     threshold: f64,
     max_function_calls_count: usize,
 }
@@ -52,7 +51,6 @@ fn train(conf: &Conf, src_samples: &[Sample], network_buf: &mut NetworkBuf) {
         TrainConf,
     };
     let apply_conf = ApplyConf {
-        group_size: conf.group_size,
         threshold: conf.threshold,
     };
     let samples: Vec<Sample> = src_samples.iter()

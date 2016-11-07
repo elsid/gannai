@@ -68,7 +68,6 @@ fn test_train_should_succeed() {
             nodes: &nodes
         };
         let apply_conf = ApplyConf {
-            group_size: 1000,
             threshold: 1e-4,
         };
         let samples = [
@@ -83,10 +82,10 @@ fn test_train_should_succeed() {
             max_function_calls_count: 71,
         };
         let error = network.train(&conf);
-        assert_eq!(error, 0.0000000024013835364655733);
+        assert_eq!(error, 0.0000002028633792616752);
     }
     assert_eq!(weights_values, [
-        0.7500085532432279, 0.9999933043615582,
-        0.986926343197382, 0.9995644922815343,
+        0.09434777092469454, 0.4674993850521012,
+        0.23415944006697653, 0.2424316682646616,
     ]);
 }

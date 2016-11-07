@@ -5,7 +5,6 @@ use super::network::Network;
 
 #[derive(RustcDecodable)]
 pub struct Conf {
-    pub group_size: usize,
     pub threshold: Value,
 }
 
@@ -36,41 +35,34 @@ impl<'r> Application<'r> {
 
     pub fn perform(&self, values: &[Value]) -> Vec<Value> {
         assert!(values.len() >= self.network.inputs.len());
-        let group_size = self.conf.group_size as Value;
         let mut result: BTreeMap<usize, Value> = self.network.outputs.iter()
             .map(|&x| (x, 0.0)).collect::<_>();
         {
             let groups = self.network.inputs.iter().zip(values)
-                .map(|(&node, value)| {
-                    self.perform_one(ValuesGroup {sum: value * group_size, node: node})
+                .map(|(&node, &value)| {
+                    self.perform_one(ValuesGroup {sum: value, node: node})
                 })
                 .flat_map(|x| x.into_iter());
             for group in groups {
                 *result.get_mut(&group.node).unwrap() += group.sum;
             }
         }
-        result.values()
-            .map(|x| x / group_size as Value)
-            .collect::<Vec<Value>>()
+        result.values().map(|&x| x).collect()
     }
 
     fn perform_one(&self, group: ValuesGroup) -> Vec<ValuesGroup> {
-        if self.network.outputs.contains(&group.node) {
-            vec![group]
-        } else if group.sum > self.conf.threshold {
-            let row = self.network.weights.row(group.node);
-            let nodes = row.iter()
+        if group.sum.abs() > self.conf.threshold {
+            let mut result = self.network.weights.row(group.node).iter()
                 .enumerate()
-                .filter(|&(_, &w)| w.abs() > 0.0)
-                .map(|(n, &w)| (n, w))
-                .collect::<Vec<(usize, Value)>>();
-            let new_sum = group.sum / nodes.len() as Value;
-            nodes.iter()
-                .map(|&(node, weight)| {
-                    self.perform_one(ValuesGroup {sum: new_sum * weight, node: node})
+                .map(|(node, &weight)| {
+                    self.perform_one(ValuesGroup {sum: group.sum * weight, node: node})
                 })
                 .flat_map(|x| x.into_iter())
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            if self.network.outputs.contains(&group.node) {
+                result.push(ValuesGroup {sum: group.sum, node: group.node});
+            }
+            result
         } else {
             vec![]
         }
@@ -92,7 +84,7 @@ fn test_apply_network_contains_one_arc_with_positive_weight_should_succeed() {
     let weights = Matrix::new(2, &weights_values);
     let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let conf = Conf {group_size: 1, threshold: 1e-3};
+    let conf = Conf {threshold: 1e-3};
     let input = 0.6;
     assert_eq!(&network.apply(&conf).perform(&[input])[..], &[input * weight]);
 }
@@ -112,7 +104,7 @@ fn test_apply_network_contains_one_arc_with_negative_weight_should_succeed() {
     let weights = Matrix::new(2, &weights_values);
     let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let conf = Conf {group_size: 1, threshold: 1e-3};
+    let conf = Conf {threshold: 1e-3};
     let input = 0.6;
     assert_eq!(&network.apply(&conf).perform(&[input])[..], &[input * weight]);
 }
@@ -134,7 +126,7 @@ fn test_apply_network_with_two_arcs_and_two_inputs_should_succeed() {
     let weights = Matrix::new(3, &weights_values);
     let nodes = (0..3).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let conf = Conf {group_size: 1, threshold: 1e-3};
+    let conf = Conf {threshold: 1e-3};
     let i1 = 0.6;
     let i2 = 0.7;
     assert_eq!(&network.apply(&conf).perform(&[i1, i2])[..], &[i1 * w13 + i2 * w23]);
@@ -157,10 +149,9 @@ fn test_apply_network_with_two_arcs_and_two_outputs_should_succeed() {
     let weights = Matrix::new(3, &weights_values);
     let nodes = (0..3).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let conf = Conf {group_size: 1, threshold: 1e-3};
+    let conf = Conf {threshold: 1e-3};
     let input = 0.6;
-    assert_eq!(&network.apply(&conf).perform(&[input])[..],
-               &[input * w12 / 2.0, input * w13 / 2.0]);
+    assert_eq!(&network.apply(&conf).perform(&[input])[..], &[input * w12, input * w13]);
 }
 
 #[test]
@@ -180,7 +171,7 @@ fn test_apply_network_with_two_arcs_and_one_middle_node_should_succeed() {
     let weights = Matrix::new(3, &weights_values);
     let nodes = (0..3).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let conf = Conf {group_size: 1, threshold: 1e-3};
+    let conf = Conf {threshold: 1e-3};
     let input = 0.6;
     assert_eq!(&network.apply(&conf).perform(&[input])[..], &[input * w12 * w23]);
 }
@@ -201,10 +192,10 @@ fn test_apply_network_with_two_arcs_and_self_add_arced_input_node_should_succeed
     let weights = Matrix::new(2, &weights_values);
     let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let conf = Conf {group_size: 1000, threshold: 1e-8};
+    let conf = Conf {threshold: 1e-8};
     let input = 0.6;
     let actual = network.apply(&conf).perform(&[input]);
-    let expected = [input * w12 * (1.0 + w11 / (2.0 - w11)) / 2.0];
+    let expected = [input * w12 / (1.0 - w11)];
     assert_eq!(actual.len(), expected.len());
     assert!((actual[0] - expected[0]).abs() <= 1e-8);
 }
@@ -223,6 +214,52 @@ fn test_apply_network_without_arcs_should_succeed() {
     let weights = Matrix::new(2, &weights_values);
     let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
     let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
-    let conf = Conf {group_size: 1000, threshold: 1e-8};
+    let conf = Conf {threshold: 1e-8};
     assert_eq!(&network.apply(&conf).perform(&[1.0]), &[0.0]);
+}
+
+#[test]
+fn test_appy_network_with_two_arcs_cycle_should_succeed() {
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use super::common::Node;
+    use super::matrix::Matrix;
+    let w12 = 0.2;
+    let w21 = 0.4;
+    let weights_values = [
+        0.0, w12,
+        w21, 0.0,
+    ];
+    let inputs = [0].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [1].iter().cloned().collect::<HashSet<usize>>();
+    let weights = Matrix::new(2, &weights_values);
+    let nodes = (0..2).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
+    let conf = Conf {threshold: 1e-8};
+    let input = 0.6;
+    let actual = network.apply(&conf).perform(&[input]);
+    let expected = [input * w12 / (1.0 - w12 * w21)];
+    assert_eq!(actual.len(), expected.len());
+    assert!((actual[0] - expected[0]).abs() <= 1e-8);
+}
+
+#[test]
+fn test_apply_network_with_one_self_arced_node_should_succeed() {
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    use super::common::Node;
+    use super::matrix::Matrix;
+    let weight = 0.2;
+    let weights_values = [
+        weight,
+    ];
+    let inputs = [0].iter().cloned().collect::<BTreeSet<usize>>();
+    let outputs = [0].iter().cloned().collect::<HashSet<usize>>();
+    let weights = Matrix::new(1, &weights_values);
+    let nodes = (0..1).map(|x| (x, Node(x))).collect::<HashMap<usize, Node>>();
+    let network = Network {inputs: &inputs, outputs: &outputs, weights: weights, nodes: &nodes};
+    let conf = Conf {threshold: 1e-8};
+    let input = 0.6;
+    let actual = network.apply(&conf).perform(&[input]);
+    let expected = [input / (1.0 - weight)];
+    assert_eq!(actual.len(), expected.len());
+    assert!((actual[0] - expected[0]).abs() <= 1e-8);
 }
